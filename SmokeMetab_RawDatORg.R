@@ -90,7 +90,7 @@ dat2$timestampPDT <- as.POSIXct(dat2$datetime, format = "%m/%d/%Y %H:%M", tz="Am
 summary(dat2)
 
 # Mesowest dtat near (34.58498706, -120.1445926)
-KIZAdat <- read_csv("SM_mesonetDat/KIZAdat.csv")
+KIZAdat <- read_csv("https://www.dropbox.com/s/ywi9spo4mdfg3xr/KIZAdat.csv?dl=1")
 #Parsed with column specification:
 cols(
   Station_ID = col_character(),
@@ -156,7 +156,7 @@ dat3$timestampPDT <- as.POSIXct(dat3$datetime, format = "%m/%d/%Y %H:%M", tz="Am
 summary(dat3)
 
 #Mesowest data near (37.3472151, -120.9761777)
-KMOD <- read_csv("SM_mesonetDat/KMOD.csv")
+KMOD <- read_csv("https://www.dropbox.com/s/ol8o968mftobt5y/KMOD.csv?dl=1")
 cols(
   Station_ID = col_character(),
   Date_Time = col_datetime(format = ""),
@@ -222,7 +222,7 @@ dat4$timestampPDT <- as.POSIXct(dat4$datetime, format = "%m/%d/%Y %H:%M", tz="Am
 summary(dat4)
 
 #Mesowest data near (38.4556, -121.50181)
-KSAC <- read_csv("SM_mesonetDat/KSAC.csv")
+KSAC <- read_csv("https://www.dropbox.com/s/loxumzgit282r2s/KSAC.csv?dl=1")
 summary(KSAC)
 
 ##
@@ -280,7 +280,7 @@ dat5$timestampPDT <- as.POSIXct(dat5$datetime, format = "%m/%d/%Y %H:%M", tz="Am
 summary(dat5)
 
 #Mesowest data near (38.25769218, -121.5182865)
-KSAC <- read_csv("SM_mesonetDat/KSAC.csv")
+KSAC <- read_csv("https://www.dropbox.com/s/loxumzgit282r2s/KSAC.csv?dl=1")
 summary(KSAC)
 
 ##
@@ -339,7 +339,7 @@ dat6$timestampPDT <- as.POSIXct(dat6$datetime, format = "%m/%d/%Y %H:%M", tz="Am
 summary(dat6)
 
 #Mesowest data near (39.02656314, -123.1305588)
-KUKI <- read_csv("SM_mesonetDat/KUKI.csv")
+KUKI <- read_csv("https://www.dropbox.com/s/pa0dqjv7mz79z41/KUKI.csv?dl=1")
 summary(KUKI)
 
 ##
@@ -396,7 +396,7 @@ dat7$timestampPDT <- as.POSIXct(dat7$datetime, format = "%m/%d/%Y %H:%M", tz="Am
 summary(dat7)
 
 #Mesowest data near (38.6329653, -122.8555494)
-KO69 <- read_csv("SM_mesonetDat/KO69.csv")
+KO69 <- read_csv("https://www.dropbox.com/s/ojm6edcrae6p7x1/KO69.csv?dl=1")
 summary(KO69)
 
 ##
@@ -454,7 +454,7 @@ dat8$timestampPDT <- as.POSIXct(dat8$datetime, format = "%m/%d/%Y %H:%M", tz="Am
 summary(dat8)
 
 #Mesowest data near (38.65324355, -122.9272191)
-KO69 <- read_csv("SM_mesonetDat/KO69.csv")
+KO69 <- read_csv("https://www.dropbox.com/s/ojm6edcrae6p7x1/KO69.csv?dl=1")
 summary(KO69)
 
 ##
@@ -513,7 +513,7 @@ dat9$timestampPDT <- as.POSIXct(dat9$datetime, format = "%m/%d/%Y %H:%M", tz="Am
 summary(dat9)
 
 #Mesowest data near (38.50852336, -122.9277737)
-KO69 <- read_csv("SM_mesonetDat/KO69.csv")
+KO69 <- read_csv("https://www.dropbox.com/s/ojm6edcrae6p7x1/KO69.csv?dl=1")
 summary(KO69)
 
 ##
@@ -571,7 +571,7 @@ dat10$timestampPDT <- as.POSIXct(dat10$datetime, format = "%m/%d/%Y %H:%M", tz="
 summary(dat10)
 
 #Mesowest data near (47.27482295, -122.2078967)
-KRNT <- read_csv("SM_mesonetDat/KRNT.csv")
+KRNT <- read_csv("https://www.dropbox.com/s/z96afy9m7onuhyr/KRNT.csv?dl=1")
 summary(KRNT)
 
 ##
@@ -629,7 +629,7 @@ dat11$timestampPDT <- as.POSIXct(dat11$datetime, format = "%m/%d/%Y %H:%M", tz="
 summary(dat11)
 
 #Mesowest data near (47.19760016, -122.337343)
-KTCM <- read_csv("SM_mesonetDat/KTCM.csv")
+KTCM <- read_csv("https://www.dropbox.com/s/3zw0gl95tc5lvgx/KTCM.csv?dl=1")
 summary(KTCM)
 
 ##
@@ -687,7 +687,7 @@ dat13$timestampPDT <- as.POSIXct(dat13$datetime, format = "%m/%d/%Y %H:%M", tz="
 summary(dat13)
 
 #Mesowest data near (45.403452, -122.7548185)
-KHIO <- read_csv("SM_mesonetDat/KHIO.csv")
+KHIO <- read_csv("https://www.dropbox.com/s/0thwggj7bpu9jxz/KHIO.csv?dl=1")
 summary(KHIO)
 ##
 # Fix timestamp (round to nearest 5 minute):
@@ -744,7 +744,7 @@ dat12$timestampPDT <- as.POSIXct(dat12$datetime, format = "%m/%d/%Y %H:%M", tz="
 summary(dat12)
 
 #Mesowest data near (44.1248487, -122.47062)
-K6S2 <- read_csv("SM_mesonetDat/K6S2.csv")
+K6S2 <- read_csv("https://www.dropbox.com/s/eizxbqcydao7who/K6S2.csv?dl=1")
 summary(K6S2)
 
 ##
@@ -806,7 +806,7 @@ dat14$timestampPDT <- as.POSIXct(dat14$datetime, format = "%m/%d/%Y %H:%M", tz="
 summary(dat14)
 
 #Mesowest data near (45.30053, -122.35359)
-D7564 <- read_csv("SM_mesonetDat/D7564.csv")
+D7564 <- read_csv("https://www.dropbox.com/s/3omdwxs3exw55er/D7564.csv?dl=1")
 summary(D7564)
 
 ##
@@ -863,7 +863,7 @@ dat15$timestampPDT <- as.POSIXct(dat15$datetime, format = "%m/%d/%Y %H:%M", tz="
 summary(dat15)
 
 #Mesowest data near (45.3792874, -122.5773134)
-ORCO3 <- read_csv("SM_mesonetDat/ORCO3.csv")
+ORCO3 <- read_csv("https://www.dropbox.com/s/uclacgc9b6uukxi/ORCO3.csv?dl=1")
 summary(ORCO3)
 
 ##

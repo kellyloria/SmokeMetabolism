@@ -1,7 +1,7 @@
 #https://api.synopticdata.com/v2/stations/latest?radius=KHOU,50&limit=10&vars=air_temp&within=100&token=2c9fda8f7b564ae185110f7c0e972cf2
 
 library(devtools)
-install_github('fickse/mesowest')
+#install_github('fickse/mesowest')
 library(mesowest)
 ?mesowest
 
