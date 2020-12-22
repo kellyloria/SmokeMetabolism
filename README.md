@@ -7,4 +7,7 @@ Looking for a signal of smoke on stream metabolism using established methods of 
 StreamMetablizer package (https://github.com/USGS-R/streamMetabolizer) from Appling et al. 2018
 
 ## File organization 
-TBD
+Files are imported from project dropbox.
+SmokeMetab_InfillDatOrg for infilled data sets
+SmokeMetab_RawDatOrg for raw data sets
+
