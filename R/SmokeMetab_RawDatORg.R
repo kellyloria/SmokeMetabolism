@@ -1,7 +1,7 @@
 #' Data Organization for modeling metabolism for signals of smoke effect 
 #' 
 #' @description Only for raw downloaded USGS data and Mesowest data
-#'@details Last update: 2020-20-21
+#'@details Last update: 2020-20-24
 #' See http://usgs-r.github.io/streamMetabolizer for vignettes on the web.
 
 ## ---------------------------
@@ -37,7 +37,7 @@ dat1$timestamp <- format(dat1$timestampPDT, tz="America/Los_Angeles", usetz=T)
 as.POSIXct(dat1$timestamp)
 
 # left join in Mesowest data
-clim2 < read_csv("https://www.dropbox.com/s/mgdk7zzuu2qb04q/KPSP.csv?dl=1")
+clim2 < read.csv("https://www.dropbox.com/s/gs8w50soclliami/KPSP.2020-10-01.csv?dl=1")
 clim2$timestampUTC <- as.POSIXct(clim2$date_time, format = "%Y-%m-%dT%H:%M", tz="UTC")
 
 clim2$timestamp2 <- round_date(clim2$timestampUTC, hour,unit="5 minutes")
@@ -51,7 +51,7 @@ summary(TemeculaDat)
 
 # Date range for both data sets = 201510010001 to 202009100001
 TemeculaDat <- subset(TemeculaDat, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                        timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                        timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(TemeculaDat$timestampPDT)
 TemeculaDat$pressure_set_1d[is.nan(TemeculaDat$pressure_set_1d)] <- NA
 TemeculaDat$air_temp_set_1[is.nan(TemeculaDat$air_temp_set_1)] <- NA
@@ -121,7 +121,7 @@ SantaYnezDat <- left_join(dat2, KIZAdat[c("timestamp2", "altimeter_set_1_pascals
 summary(SantaYnezDat)
 
 SantaYnezDat <- subset(SantaYnezDat, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                         timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                         timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(SantaYnezDat$timestampPDT)
 summary(SantaYnezDat)
 
@@ -188,7 +188,7 @@ SanJoaquin <- left_join(dat3, KMOD[c("timestamp2", "air_temp_set_1", "pressure_s
 summary(SanJoaquin)
 
 SanJoaquin <- subset(SanJoaquin, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                       timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                       timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(SanJoaquin$timestampPDT)
 summary(SanJoaquin)
 
@@ -246,7 +246,7 @@ SacramentoFP <- left_join(dat4, KSAC[c("timestamp2", "air_temp_set_1", "pressure
 summary(SacramentoFP)
 
 SacramentoFP <- subset(SacramentoFP, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                       timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                       timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(SacramentoFP$timestampPDT)
 summary(SacramentoFP)
 
@@ -304,7 +304,7 @@ SacramentoDCC <- left_join(dat5, KSAC[c("timestamp2", "air_temp_set_1", "pressur
 summary(SacramentoDCC)
 
 SacramentoDCC <- subset(SacramentoDCC, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                         timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                         timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(SacramentoDCC$timestampPDT)
 summary(SacramentoDCC)
 
@@ -363,7 +363,7 @@ RussianH <- left_join(dat6, KUKI[c("timestamp2", "air_temp_set_1", "pressure_set
 summary(RussianH)
 
 RussianH <- subset(RussianH, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                          timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                          timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(RussianH$timestampPDT)
 summary(RussianH)
 
@@ -420,7 +420,7 @@ RussianDB <- left_join(dat7, KO69[c("timestamp2", "air_temp_set_1", "pressure_se
 summary(RussianDB)
 
 RussianDB <- subset(RussianDB, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                     timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                     timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(RussianDB$timestampPDT)
 summary(RussianDB)
 
@@ -478,7 +478,7 @@ DryCBLW <- left_join(dat8, KO69[c("timestamp2", "air_temp_set_1", "pressure_set_
 summary(DryCBLW)
 
 DryCBLW <- subset(DryCBLW, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                      timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                      timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(DryCBLW$timestampPDT)
 summary(DryCBLW)
 
@@ -537,7 +537,7 @@ RussianNRG <- left_join(dat9, KO69[c("timestamp2", "air_temp_set_1", "pressure_s
 summary(RussianNRG)
 
 RussianNRG <- subset(RussianNRG, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                    timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                    timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(RussianNRG$timestampPDT)
 summary(RussianNRG)
 
@@ -595,7 +595,7 @@ WhiteA <- left_join(dat10, KRNT[c("timestamp2", "air_temp_set_1", "pressure_set_
 summary(WhiteA)
 
 WhiteA <- subset(WhiteA, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                       timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                       timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(WhiteA$timestampPDT)
 summary(WhiteA)
 
@@ -653,7 +653,7 @@ ClarksC <- left_join(dat11, KTCM[c("timestamp2", "air_temp_set_1", "pressure_set
 summary(ClarksC)
 
 ClarksC <- subset(ClarksC, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                   timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                   timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(ClarksC$timestampPDT)
 summary(ClarksC)
 
@@ -709,7 +709,7 @@ Fanno <- left_join(dat13, KHIO[c("timestamp2", "air_temp_set_1", "pressure_set_1
 summary(Fanno)
 
 Fanno <- subset(Fanno, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                    timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                    timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(Fanno$timestampPDT)
 summary(Fanno)
 
@@ -768,7 +768,7 @@ Mckenzie <- left_join(dat12, K6S2[c("timestamp2", "air_temp_set_1", "pressure_se
 summary(Mckenzie)
 
 Mckenzie <- subset(Mckenzie, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                     timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                     timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(Mckenzie$timestampPDT)
 summary(Mckenzie)
 
@@ -830,7 +830,7 @@ Clackamas <- left_join(dat14, D7564[c("timestamp2", "air_temp_set_1", "pressure_
 summary(Clackamas)
 
 Clackamas <- subset(Clackamas, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                     timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                     timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(Clackamas$timestampPDT)
 summary(Clackamas)
 
@@ -887,7 +887,7 @@ ClackamasOC <- left_join(dat15, ORCO3[c("timestamp2", "air_temp_set_1", "altimet
 summary(ClackamasOC)
 
 ClackamasOC <- subset(ClackamasOC, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                      timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+                      timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
 range(ClackamasOC$timestampPDT)
 summary(ClackamasOC)
 
