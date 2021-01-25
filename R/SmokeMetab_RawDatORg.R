@@ -8,7 +8,7 @@
 # File path setup:
 if (dir.exists('/Users/kellyloria/Documents/UNR_2020/Fall2020Projects/')){
   inputDir<- '/Users/kellyloria/Documents/UNR_2020/Fall2020Projects/'
-  outputDir<- '/Users/kellyloria/Documents/UNR_2020/Fall2020Projects/SmokeMetabolism/SmokeMetabData/RawDat'
+  outputDir<- '/Users/kellyloria/Documents/UNR_2020/Fall2020Projects/SmokeMetabolism/SmokeMetabData'
 }
 ## ---------------------------
 
@@ -22,6 +22,7 @@ library(lme4)
 library(rstan)
 library(unitted)
 library(zoo)
+library(lubridate)
 
 ## ---------------------------
 # SANTA MARGARITA R NR TEMECULA
@@ -33,25 +34,22 @@ dat1 <- read.csv( "https://www.dropbox.com/s/ujyad748ka7flli/nwis.11044000.csv?d
 summary(dat1) # SANTA MARGARITA R NR TEMECULA CA https://waterdata.usgs.gov/nwis/inventory/?site_no=11044000&agency_cd=USGS
 range(dat1$datetime)
 dat1$timestampPDT <- as.POSIXct(dat1$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
-dat1$timestamp <- format(dat1$timestampPDT, tz="America/Los_Angeles", usetz=T)
-as.POSIXct(dat1$timestamp)
+dat1$timestamp2 <- round_date(dat1$timestampPDT, hour,unit="5 minutes")
 
 # left join in Mesowest data
 clim2 < read.csv("https://www.dropbox.com/s/gs8w50soclliami/KPSP.2020-10-01.csv?dl=1")
 clim2$timestampUTC <- as.POSIXct(clim2$date_time, format = "%Y-%m-%dT%H:%M", tz="UTC")
-
 clim2$timestamp2 <- round_date(clim2$timestampUTC, hour,unit="5 minutes")
-clim2$timestamp <- format(clim2$timestamp2 , tz="America/Los_Angeles", usetz=TRUE)
-as.POSIXct(clim2$timestamp)
+summary(clim2)
 
 # Merge data files
-TemeculaDat <- left_join(dat1, clim2[c("timestampUTC", "pressure_set_1d", "air_temp_set_1")],
-                         by = c("timestampPDT" = "timestampUTC"))
+TemeculaDat <- left_join(dat1, clim2[c("timestamp2", "pressure_set_1d", "air_temp_set_1")],
+                         by = c("timestamp2" = "timestamp2"))
 summary(TemeculaDat)
 
 # Date range for both data sets = 201510010001 to 202009100001
 TemeculaDat <- subset(TemeculaDat, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                        timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
+                        timestampPDT <= as.POSIXct('2020-10-01 00:00:00'))
 range(TemeculaDat$timestampPDT)
 TemeculaDat$pressure_set_1d[is.nan(TemeculaDat$pressure_set_1d)] <- NA
 TemeculaDat$air_temp_set_1[is.nan(TemeculaDat$air_temp_set_1)] <- NA
@@ -74,14 +72,13 @@ TemeculaDat$light <- calc_light(TemeculaDat$solar.time,
                                   max.PAR = u(2326, "umol m^-2 s^-1"),
                                   attach.units = is.unitted(TemeculaDat$solar.time))
 
-TemeculaDat$DO_sat <- calc_DO_sat(TemeculaDat$tempC, 
+TemeculaDat$DO.sat <- calc_DO_sat(TemeculaDat$tempC, 
                                     TemeculaDat$pressure_millibar, sal=0) 
 
 names(TemeculaDat)
 # colnames(TemeculaDat)[4] <- "temp.water"
 # colnames(TemeculaDat)[6] <- "discharge"
 # colnames(TemeculaDat)[8] <- "DO.obs"
-# colnames(TemeculaDat)[19] <- "DO.sat"
 
 TemeculaDatQ <- subset(TemeculaDat, select= c(solar.time, DO.obs, DO.sat, depth, temp.water, light, discharge))
 
@@ -94,38 +91,30 @@ TemeculaDatQ <- subset(TemeculaDat, select= c(solar.time, DO.obs, DO.sat, depth,
 ## ---------------------------
 dat2 <- read.csv("https://www.dropbox.com/s/eochnr2z8v3qsip/nwis.11128500.csv?dl=1")
 summary(dat2) # SANTA YNEZ R A SOLVANG CA
+
 dat2$timestampPDT <- as.POSIXct(dat2$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
-summary(dat2)
+dat2$timestamp <- round_date(dat2$timestampPDT, hour,unit="5 minutes")
 
 # Mesowest dtat near (34.58498706, -120.1445926)
-KIZAdat <- read_csv("https://www.dropbox.com/s/ywi9spo4mdfg3xr/KIZAdat.csv?dl=1")
-#Parsed with column specification:
-cols(
-  Station_ID = col_character(),
-  Date_Time = col_datetime(format = ""),
-  altimeter_set_1_pascals = col_double(),
-  air_temp_set_1_C = col_double(),
-  pressure_set_1d_pascals = col_double()
-)
+KIZAdat <- read.csv("https://www.dropbox.com/s/6v1w2ubyx2hdpdo/KIZA.2020-10-01.csv?dl=1")
 
-summary(KIZAdat)  
 # Fix timestamp (round to nearest 5 minute):
-KIZAdat$timestamp <- round_date(KIZAdat$Date_Time, hour,unit="5 minutes")
-#KIZAdat$timestamp1 <- format(KIZAdat$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KIZAdat$timestamp2 <- as.POSIXct(KIZAdat$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KIZAdat$timestampUTC <- as.POSIXct(KIZAdat$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KIZAdat$timestamp <- round_date(KIZAdat$timestampUTC, hour,unit="5 minutes")
 
-names(KIZAdat)
+summary(KIZAdat) 
+
 # Merge data files 
-SantaYnezDat <- left_join(dat2, KIZAdat[c("timestamp2", "altimeter_set_1_pascals", "air_temp_set_1_C")],
-                          by = c("timestampPDT" = "timestamp2"))
+SantaYnezDat <- left_join(dat2, KIZAdat[c("timestamp", "altimeter_set_1", "pressure_set_1d", "air_temp_set_1")],
+                          by = c("timestamp" = "timestamp"))
 summary(SantaYnezDat)
 
 SantaYnezDat <- subset(SantaYnezDat, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                         timestampPDT <= as.POSIXct('2020-09-20 00:00:00'))
+                         timestampPDT <= as.POSIXct('2020-10-01 00:00:00'))
 range(SantaYnezDat$timestampPDT)
 summary(SantaYnezDat)
 
-SantaYnezDat$pressure_millibar <- c(SantaYnezDat$altimeter_set_1_pascals * 0.01)
+SantaYnezDat$pressure_millibar <- c(SantaYnezDat$pressure_set_1d * 0.01)
 
 ### Stream Metabolizer estimates ###
 SantaYnezDat$depth <- calc_depth(Q=u(SantaYnezDat$discharge, "m^3 s^-1"), f=u(0.36))
@@ -141,13 +130,12 @@ SantaYnezDat$light <- calc_light(SantaYnezDat$solar.time,
                                    max.PAR = u(2326, "umol m^-2 s^-1"),
                                    attach.units = is.unitted(SantaYnezDat$solar.time))
 
-SantaYnezDat$DO_sat <- calc_DO_sat(SantaYnezDat$tempC, 
+SantaYnezDat$DO.sat <- calc_DO_sat(SantaYnezDat$temp.water, 
                                      SantaYnezDat$pressure_millibar, sal=0) 
 names(SantaYnezDat)
 # colnames(SantaYnezDat)[7] <- "temp.water"
 # colnames(SantaYnezDat)[5] <- "discharge"
 # colnames(SantaYnezDat)[9] <- "DO.obs"
-# colnames(SantaYnezDat)[18] <- "DO.sat"
 
 SantaYnezDatQ <- subset(SantaYnezDat, select= c("solar.time", "DO.obs", "DO.sat", "depth", "temp.water", "light", "discharge"))
 
@@ -156,22 +144,16 @@ SantaYnezDatQ <- subset(SantaYnezDat, select= c("solar.time", "DO.obs", "DO.sat"
 
 
 ## ---------------------------
-# SAN JOAQUIN R AB MERCED R NR NEWMAN CA
+# SAN JOAQUIN R AB MERCED R NR NEWMAN CA * YOU ARE HERE AT MESOWEST DOWNLOAD!*
 ## ---------------------------
 dat3 <- read.csv("https://www.dropbox.com/s/d1taddci0q0lvqk/nwis.11273400.csv?dl=1")
 summary(dat3)
 dat3$timestampPDT <- as.POSIXct(dat3$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat3$timestamp <- round_date(dat3$timestampPDT, hour,unit="5 minutes")
 summary(dat3)
 
 #Mesowest data near (37.3472151, -120.9761777)
 KMOD <- read_csv("https://www.dropbox.com/s/ol8o968mftobt5y/KMOD.csv?dl=1")
-cols(
-  Station_ID = col_character(),
-  Date_Time = col_datetime(format = ""),
-  altimeter_set_1 = col_double(),
-  air_temp_set_1 = col_double(),
-  pressure_set_1d = col_double()
-)
 
 summary(KMOD)
 

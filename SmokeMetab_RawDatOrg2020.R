@@ -28,16 +28,38 @@ library(dataRetrieval)
 # SANTA MARGARITA R NR TEMECULA
 ## ---------------------------
 
+startDate <- "2015-10-01"
+endDate <- "2020-10-01"
+
 ##
 #select sites:
 ### 4
 siteNumber <- "11044000" 
 Info <- readNWISsite(siteNumber)
 parameterCd <- c("00060",  # discharge
-                 "00010")  # Water temp
+                 "00010",
+                 "00300")  # Water temp
 
-#Raw daily data:
-dat2 <- readNWISdv(siteNumber,parameterCd, "2015-10-01","2020-10-01")
+# readNWISqw
+
+dat1 <- readNWISdv(siteNumber,parameterCd,
+                      "1980-09-30","2020-10-01")
+
+dat1 <- readNWISqw(siteNumber,parameterCd,
+                   "2015-10-01","2020-10-01",
+                   reshape=TRUE)
+
+summary(dat1)
+
+dat2 <- subset(dat1, select= c(agency_cd, site_no, 
+                               DO.sat, depth, temp.water, light, discharge))
+
+
+
+# colnames(TemeculaDat)[4] <- "temp.water"
+# colnames(TemeculaDat)[6] <- "discharge"
+# colnames(TemeculaDat)[8] <- "DO.obs"
+# colnames(TemeculaDat)[19] <- "DO.sat"
 
 qwData4$dec_lat_va <- Info$dec_lat_va
 qwData4$dec_long_va <- Info$dec_long_va
