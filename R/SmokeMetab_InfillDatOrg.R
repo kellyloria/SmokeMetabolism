@@ -8,7 +8,7 @@
 # File path setup:
 if (dir.exists('/Users/kellyloria/Documents/UNR_2020/Fall2020Projects/')){
   inputDir<- '/Users/kellyloria/Documents/UNR_2020/Fall2020Projects/'
-  outputDir<- '/Users/kellyloria/Documents/UNR_2020/Fall2020Projects/SmokeMetabolism/SmokeMetabData/InfilledDat'
+  outputDir<- '/Users/kellyloria/Documents/UNR_2020/Fall2020Projects/SmokeMetabolism/SmokeMetabData'
 }
 ## ---------------------------
 
@@ -22,11 +22,11 @@ library(lme4)
 library(rstan)
 library(unitted)
 library(zoo)
+library(lubridate)
 
 ## ---------------------------
 # SANTA MARGARITA R NR TEMECULA
 ## ---------------------------
-
 # Load in data:
 # https://www.dropbox.com/s/ujyad748ka7flli/nwis.11044000.csv?dl=0
 # change dl=0 to dl=1
@@ -34,33 +34,17 @@ dat1 <- read.csv( "https://www.dropbox.com/s/ujyad748ka7flli/nwis.11044000.csv?d
 summary(dat1) # SANTA MARGARITA R NR TEMECULA CA https://waterdata.usgs.gov/nwis/inventory/?site_no=11044000&agency_cd=USGS
 range(dat1$datetime)
 dat1$timestampPDT <- as.POSIXct(dat1$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
-dat1$timestamp <- format(dat1$timestampPDT, tz="America/Los_Angeles", usetz=T)
-as.POSIXct(dat1$timestamp)
+dat1$timestamp <- as.POSIXct(round_date(dat1$timestampPDT, hour,unit="5 minutes"))
 
-# left join in Mesowest data 
-clim2 < read_csv("https://www.dropbox.com/s/mgdk7zzuu2qb04q/KPSP.csv?dl=1")
+# left join in Mesowest data
+clim2 < read.csv("https://www.dropbox.com/s/gs8w50soclliami/KPSP.2020-10-01.csv?dl=1")
 clim2$timestampUTC <- as.POSIXct(clim2$date_time, format = "%Y-%m-%dT%H:%M", tz="UTC")
-
-clim2$timestamp2 <- round_date(clim2$timestampUTC, hour,unit="5 minutes")
-clim2$timestamp <- format(clim2$timestamp2 , tz="America/Los_Angeles", usetz=TRUE)
-as.POSIXct(clim2$timestamp)
+clim2$timestamp <- as.POSIXct(round_date(clim2$timestampUTC, hour,unit="5 minutes"))
+summary(clim2)
 
 # Merge data files
-TemeculaDat <- left_join(dat1, clim2[c("timestampUTC", "pressure_set_1d", "air_temp_set_1")],
-                         by = c("timestampPDT" = "timestampUTC"))
-summary(TemeculaDat)
-
-# Date range for both data sets = 201510010001 to 202009100001
-TemeculaDat <- subset(TemeculaDat, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
-                        timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(TemeculaDat$timestampPDT)
-TemeculaDat$pressure_set_1d[is.nan(TemeculaDat$pressure_set_1d)] <- NA
-TemeculaDat$air_temp_set_1[is.nan(TemeculaDat$air_temp_set_1)] <- NA
-
-ggplot(TemeculaDat, aes(x=timestampPDT, y=(discharge))) +
-  geom_point(alpha = 0.7)  +
-  theme_classic()
-
+TemeculaDat <- left_join(dat1, clim2[c("timestamp", "pressure_set_1d", "air_temp_set_1")],
+                         by = c("timestamp" = "timestamp"))
 ## 
 ## Infill missing data:
 ## 
@@ -95,8 +79,8 @@ TemeculaDat$DOmgL<- as.numeric(ifelse(is.na(TemeculaDat$DOmgL),
 
 # Pressure:
 # Date range for both data restrict to 2016 for missing weather obs
-TemeculaDat1 <- subset(TemeculaDat, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                         timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+TemeculaDat1 <- subset(TemeculaDat, timestamp >= as.POSIXct('2016-10-01 00:53:00') & 
+                         timestamp <= as.POSIXct('2020-09-10 00:00:00'))
 
 TemeculaDat1$pressureMean <- rollapply(TemeculaDat1$pressure_set_1d, width=500,
                                       FUN=function(x) mean(x, na.rm=TRUE), by=1,
@@ -115,7 +99,7 @@ TemeculaDat1$depth <- calc_depth(Q=u(TemeculaDat1$discharge, "m^3 s^-1"), f=u(0.
 latitude <- c(33.4739175)
 longitude <- c(-117.1422536) 
 
-TemeculaDat1$solar.time <- calc_solar_time(TemeculaDat1$timestampPDT, longitude)
+TemeculaDat1$solar.time <- calc_solar_time(TemeculaDat1$timestamp, longitude)
 TemeculaDat1$light <- calc_light(TemeculaDat1$solar.time,
                                 latitude,
                                 longitude,
@@ -127,7 +111,6 @@ TemeculaDat1$DO.sat <- calc_DO_sat(TemeculaDat1$tempC,
 
 names(TemeculaDat1)
 # colnames(TemeculaDat1)[4] <- "temp.water"
-# colnames(TemeculaDat1)[6] <- "discharge"
 # colnames(TemeculaDat1)[8] <- "DO.obs"
 
 TemeculaDatQ <- subset(TemeculaDat1, select= c(solar.time, DO.obs, DO.sat, depth, temp.water, light, discharge))
@@ -140,36 +123,22 @@ TemeculaDatQ <- subset(TemeculaDat1, select= c(solar.time, DO.obs, DO.sat, depth
 # SANTA YNEZ R A SOLVANG CA
 ## ---------------------------
 dat2 <- read.csv("https://www.dropbox.com/s/eochnr2z8v3qsip/nwis.11128500.csv?dl=1")
-summary(dat2) # SANTA YNEZ R A SOLVANG CA
 dat2$timestampPDT <- as.POSIXct(dat2$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
-summary(dat2)
+dat2$timestamp <- as.POSIXct(round_date(dat2$timestampPDT, hour,unit="5 minutes"))
 
 # Mesowest dtat near (34.58498706, -120.1445926)
-KIZAdat <- read_csv("https://www.dropbox.com/s/ywi9spo4mdfg3xr/KIZAdat.csv?dl=1")
-#Parsed with column specification:
-cols(
-  Station_ID = col_character(),
-  Date_Time = col_datetime(format = ""),
-  altimeter_set_1_pascals = col_double(),
-  air_temp_set_1_C = col_double(),
-  pressure_set_1d_pascals = col_double()
-)
-
-summary(KIZAdat)  
+KIZAdat <- read.csv("https://www.dropbox.com/s/6v1w2ubyx2hdpdo/KIZA.2020-10-01.csv?dl=1")
 # Fix timestamp (round to nearest 5 minute):
-KIZAdat$timestamp <- round_date(KIZAdat$Date_Time, hour,unit="5 minutes")
-KIZAdat$timestamp1 <- format(KIZAdat$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KIZAdat$timestamp2 <- as.POSIXct(KIZAdat$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KIZAdat$timestampUTC <- as.POSIXct(KIZAdat$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KIZAdat$timestamp <- as.POSIXct(round_date(KIZAdat$timestampUTC, hour,unit="5 minutes"))
 
-names(KIZAdat)
 # Merge data files 
-SantaYnezDat <- left_join(dat2, KIZAdat[c("timestamp2", "altimeter_set_1_pascals", "air_temp_set_1_C")],
-                          by = c("timestampPDT" = "timestamp2"))
+SantaYnezDat <- left_join(dat2, KIZAdat[c("timestamp", "altimeter_set_1", "pressure_set_1d", "air_temp_set_1")],
+                          by = c("timestamp" = "timestamp"))
 
-SantaYnezDat <- subset(SantaYnezDat, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                         timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(SantaYnezDat$timestampPDT)
-summary(SantaYnezDat)
+SantaYnezDat <- subset(SantaYnezDat, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                         timestamp <= as.POSIXct('2020-10-01 00:00:00'))
+range(SantaYnezDat$timestamp)
 
 ## 
 ## Infill missing data: 
@@ -177,12 +146,12 @@ summary(SantaYnezDat)
 ##        - Especially temperature 
 
 # Infill some data with rolling averages:
-ggplot(SantaYnezDat, aes(x=timestampPDT, y=(DOmgLMean))) +
+ggplot(SantaYnezDat, aes(x=timestamp, y=(DOmgL))) +
   geom_point(alpha = 0.7)  +
   theme_classic()
 
 # Water Temp
-SantaYnezDat$tempCMean <- rollapply(SantaYnezDat$tempC, width=5000,
+SantaYnezDat$tempCMean <- rollapply(SantaYnezDat$tempC, width=500,
                                    FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                    by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -199,7 +168,7 @@ SantaYnezDat$discharge <- as.numeric(ifelse(is.na(SantaYnezDat$discharge),
                                            (SantaYnezDat$dischargeMean),
                                            (SantaYnezDat$discharge)))
 # Dissolved oxygen:
-SantaYnezDat$DOmgLMean <- rollapply(SantaYnezDat$DOmgL, width=5000,
+SantaYnezDat$DOmgLMean <- rollapply(SantaYnezDat$DOmgL, width=500,
                                    FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                    by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -208,7 +177,7 @@ SantaYnezDat$DOmgL<- as.numeric(ifelse(is.na(SantaYnezDat$DOmgL),
                                       (SantaYnezDat$DOmgL)))
 
 # Pressure:
-SantaYnezDat$pressureMean <- rollapply(SantaYnezDat$altimeter_set_1_pascals, width=5000,
+SantaYnezDat$pressureMean <- rollapply(SantaYnezDat$altimeter_set_1_pascals, width=500,
                                        FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                        by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -217,7 +186,7 @@ SantaYnezDat$altimeter_set_1_pascals <- as.numeric(ifelse(is.na(SantaYnezDat$alt
                                                   (SantaYnezDat$altimeter_set_1_pascals)))
 summary(SantaYnezDat)
 
-SantaYnezDat$pressure_millibar <- c(SantaYnezDat$altimeter_set_1_pascals * 0.01)
+SantaYnezDat$pressure_millibar <- c(SantaYnezDat$pressure_set_1d * 0.01)
 
 
 ### Stream Metabolizer estimates ###
@@ -227,7 +196,7 @@ SantaYnezDat$depth <- calc_depth(Q=u(SantaYnezDat$discharge, "m^3 s^-1"), f=u(0.
 latitude <- c(34.58498706)
 longitude <- c(-120.1445926) 
 
-SantaYnezDat$solar.time <- calc_solar_time(SantaYnezDat$timestampPDT, longitude)
+SantaYnezDat$solar.time <- calc_solar_time(SantaYnezDat$timestamp, longitude)
 SantaYnezDat$light <- calc_light(SantaYnezDat$solar.time,
                                  latitude,
                                  longitude,
@@ -238,9 +207,7 @@ SantaYnezDat$DO.sat <- calc_DO_sat(SantaYnezDat$tempC,
                                    SantaYnezDat$pressure_millibar, sal=0) 
 names(SantaYnezDat)
 # colnames(SantaYnezDat)[7] <- "temp.water"
-# colnames(SantaYnezDat)[5] <- "discharge"
 # colnames(SantaYnezDat)[9] <- "DO.obs"
-
 
 SantaYnezDatQ <- subset(SantaYnezDat, select= c("solar.time", "DO.obs", "DO.sat", "depth", "temp.water", "light", "discharge"))
 
@@ -254,39 +221,30 @@ SantaYnezDatQ <- subset(SantaYnezDat, select= c("solar.time", "DO.obs", "DO.sat"
 dat3 <- read.csv("https://www.dropbox.com/s/d1taddci0q0lvqk/nwis.11273400.csv?dl=1")
 summary(dat3)
 dat3$timestampPDT <- as.POSIXct(dat3$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat3$timestamp <- as.POSIXct(round_date(dat3$timestampPDT, hour,unit="5 minutes"))
 summary(dat3)
 
 #Mesowest data near (37.3472151, -120.9761777)
-KMOD <- read_csv("https://www.dropbox.com/s/ol8o968mftobt5y/KMOD.csv?dl=1")
+KMOD <- read.csv("https://www.dropbox.com/s/icjidfpe5f44y5i/KMOD.2020-10-01.csv?dl=1")
 summary(KMOD)
 
 ##
 # Fix timestamp (round to nearest 5 minute):
-KMOD$timestamp <- round_date(KMOD$Date_Time, hour,unit="5 minutes")
-KMOD$timestamp1 <- format(KMOD$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KMOD$timestamp2 <- as.POSIXct(KMOD$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KMOD$timestampUTC <- as.POSIXct(KMOD$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KMOD$timestamp <- as.POSIXct(round_date(KMOD$timestampUTC, hour,unit="5 minutes"))
 
-names(KIZAdat)
 # Merge data files 
-SanJoaquin <- left_join(dat3, KMOD[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                        by = c("timestampPDT" = "timestamp2"))
-summary(SanJoaquin)
+SanJoaquin <- left_join(dat3, KMOD[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                        by = c("timestamp" = "timestamp"))
 
-SanJoaquin <- subset(SanJoaquin, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                       timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+SanJoaquin <- subset(SanJoaquin, timestampPDT >= as.POSIXct('2015-10-01 00:53:00') & 
+                       timestampPDT <= as.POSIXct('2020-10-01 00:00:00'))
 range(SanJoaquin$timestampPDT)
 summary(SanJoaquin)
 
 ## 
 ## Infill missing data: 
 ##   
-
-
-# Infill some data with rolling averages:
-ggplot(SanJoaquin, aes(x=timestampPDT, y=(pressure_set_1d))) +
-  geom_point(alpha = 0.7)  +
-  theme_classic()
-
 # Water Temp
 SanJoaquin$tempCMean <- rollapply(SanJoaquin$tempC, width=500,
                                     FUN=function(x) mean(x, na.rm=TRUE), by=1,
@@ -297,7 +255,7 @@ SanJoaquin$tempC<- as.numeric(ifelse(is.na(SanJoaquin$tempC),
                                        (SanJoaquin$tempC)))
 
 # Discharge:
-SanJoaquin$dischargeMean <- rollapply(SanJoaquin$discharge, width=5000,
+SanJoaquin$dischargeMean <- rollapply(SanJoaquin$discharge, width=500,
                                         FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                         by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -305,7 +263,7 @@ SanJoaquin$discharge <- as.numeric(ifelse(is.na(SanJoaquin$discharge),
                                             (SanJoaquin$dischargeMean),
                                             (SanJoaquin$discharge)))
 # Dissolved oxygen:
-SanJoaquin$DOmgLMean <- rollapply(SanJoaquin$DOmgL, width=5000,
+SanJoaquin$DOmgLMean <- rollapply(SanJoaquin$DOmgL, width=500,
                                     FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                     by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -314,7 +272,7 @@ SanJoaquin$DOmgL<- as.numeric(ifelse(is.na(SanJoaquin$DOmgL),
                                        (SanJoaquin$DOmgL)))
 
 # Pressure:
-SanJoaquin$pressureMean <- rollapply(SanJoaquin$pressure_set_1d, width=5000,
+SanJoaquin$pressureMean <- rollapply(SanJoaquin$pressure_set_1d, width=500,
                                        FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                        by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -330,7 +288,7 @@ SanJoaquin$depth <- calc_depth(Q=u(SanJoaquin$discharge, "m^3 s^-1"), f=u(0.36))
 latitude <- c(37.3472151)
 longitude <- c(-120.9761777) 
 
-SanJoaquin$solar.time <- calc_solar_time(SanJoaquin$timestampPDT, longitude)
+SanJoaquin$solar.time <- calc_solar_time(SanJoaquin$timestamp, longitude)
 SanJoaquin$light <- calc_light(SanJoaquin$solar.time,
                                latitude,
                                longitude,
@@ -340,7 +298,6 @@ SanJoaquin$light <- calc_light(SanJoaquin$solar.time,
 SanJoaquin$Do.sat <- calc_DO_sat(SanJoaquin$tempC, 
                                  SanJoaquin$pressure_millibar, sal=0) 
 names(SanJoaquin)
-# colnames(SanJoaquin)[5] <- "discharge"
 # colnames(SanJoaquin)[7] <- "temp.water"
 # colnames(SanJoaquin)[9] <- "DO.obs"
 
@@ -354,40 +311,31 @@ SanJoaquinQ <- subset(SanJoaquin, select= c("solar.time", "DO.obs", "DO.sat", "d
 # SACRAMENTO R A FREEPORT CA
 ## ---------------------------
 dat4 <- read.csv("https://www.dropbox.com/s/lke4l9r91ktculf/nwis.11447650.csv?dl=1")
-summary(dat4)
 dat4$timestampPDT <- as.POSIXct(dat4$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat4$timestamp <- as.POSIXct(round_date(dat4$timestampPDT, hour,unit="5 minutes"))
 summary(dat4)
 
 #Mesowest data near (38.4556, -121.50181)
-KSAC <- read_csv("https://www.dropbox.com/s/loxumzgit282r2s/KSAC.csv?dl=1")
+KSAC <- read.csv("https://www.dropbox.com/s/pw3jvbvwvmac0sx/KSAC.2020-10-01.csv?dl=1")
 summary(KSAC)
 
 ##
 # Fix timestamp (round to nearest 5 minute):
-KSAC$timestamp <- round_date(KSAC$Date_Time, hour,unit="5 minutes")
-KSAC$timestamp1 <- format(KSAC$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KSAC$timestamp2 <- as.POSIXct(KSAC$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KSAC$timestampUTC <- as.POSIXct(KSAC$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KSAC$timestamp <- as.POSIXct(round_date(KSAC$timestampUTC, hour,unit="5 minutes"))
 
 names(KSAC)
 # Merge data files 
-SacramentoFP <- left_join(dat4, KSAC[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                          by = c("timestampPDT" = "timestamp2"))
-summary(SacramentoFP)
+SacramentoFP <- left_join(dat4, KSAC[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                          by = c("timestamp" = "timestamp"))
 
-SacramentoFP <- subset(SacramentoFP, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                         timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(SacramentoFP$timestampPDT)
+SacramentoFP <- subset(SacramentoFP, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                         timestamp <= as.POSIXct('2020-10-01 00:00:00'))
+range(SacramentoFP$timestamp)
 summary(SacramentoFP)
-
 ## 
 ## Infill missing data: 
 ##   
-
-
-# Infill some data with rolling averages:
-ggplot(SacramentoFP, aes(x=timestampPDT, y=(tempCMean))) +
-  geom_point(alpha = 0.7)  +
-  theme_classic()
 
 # Water Temp
 SacramentoFP$tempCMean <- rollapply(SacramentoFP$tempC, width=500,
@@ -407,7 +355,7 @@ SacramentoFP$discharge <- as.numeric(ifelse(is.na(SacramentoFP$discharge),
                                           (SacramentoFP$dischargeMean),
                                           (SacramentoFP$discharge)))
 # Dissolved oxygen:
-SacramentoFP$DOmgLMean <- rollapply(SacramentoFP$DOmgL, width=5000,
+SacramentoFP$DOmgLMean <- rollapply(SacramentoFP$DOmgL, width=500,
                                   FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                   by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -416,7 +364,7 @@ SacramentoFP$DOmgL<- as.numeric(ifelse(is.na(SacramentoFP$DOmgL),
                                      (SacramentoFP$DOmgL)))
 
 # Pressure:
-SacramentoFP$pressureMean <- rollapply(SacramentoFP$pressure_set_1d, width=5000,
+SacramentoFP$pressureMean <- rollapply(SacramentoFP$pressure_set_1d, width=500,
                                      FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                      by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -433,7 +381,7 @@ SacramentoFP$depth <- calc_depth(Q=u(SacramentoFP$discharge, "m^3 s^-1"), f=u(0.
 latitude <- c(38.4556)
 longitude <- c(-121.50181) 
 
-SacramentoFP$solar.time <- calc_solar_time(SacramentoFP$timestampPDT, longitude)
+SacramentoFP$solar.time <- calc_solar_time(SacramentoFP$timestamp, longitude)
 SacramentoFP$light <- calc_light(SacramentoFP$solar.time,
                                  latitude,
                                  longitude,
@@ -443,7 +391,6 @@ SacramentoFP$light <- calc_light(SacramentoFP$solar.time,
 SacramentoFP$DO.sat <- calc_DO_sat(SacramentoFP$tempC, 
                                    SacramentoFP$pressure_millibar, sal=0) 
 names(SacramentoFP)
-# colnames(SacramentoFP)[13] <- "discharge"
 # colnames(SacramentoFP)[5] <- "temp.water"
 # colnames(SacramentoFP)[11] <- "DO.obs"
 
@@ -457,43 +404,36 @@ SacramentoFPQ <- subset(SacramentoFP, select= c("solar.time", "DO.obs", "DO.sat"
 # SACRAMENTO R AB DELTA CROSS CHANNEL CA
 ## ---------------------------
 dat5 <- read.csv("https://www.dropbox.com/s/us0cl9yygoo81ft/nwis.11447890.csv?dl=1")
-summary(dat5)
 dat5$timestampPDT <- as.POSIXct(dat5$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat5$timestamp <- as.POSIXct(round_date(dat5$timestampPDT, hour,unit="5 minutes"))
 summary(dat5)
 
+
 #Mesowest data near (38.25769218, -121.5182865)
-KSAC <- read_csv("https://www.dropbox.com/s/loxumzgit282r2s/KSAC.csv?dl=1")
+KSAC <- read.csv("https://www.dropbox.com/s/pw3jvbvwvmac0sx/KSAC.2020-10-01.csv?dl=1")
 summary(KSAC)
 
 ##
 # Fix timestamp (round to nearest 5 minute):
-KSAC$timestamp <- round_date(KSAC$Date_Time, hour,unit="5 minutes")
-KSAC$timestamp1 <- format(KSAC$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KSAC$timestamp2 <- as.POSIXct(KSAC$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KSAC$timestampUTC <- as.POSIXct(KSAC$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KSAC$timestamp <- as.POSIXct(round_date(KSAC$timestampUTC, hour,unit="5 minutes"))
 
 names(KSAC)
 # Merge data files 
-SacramentoDCC <- left_join(dat5, KSAC[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                           by = c("timestampPDT" = "timestamp2"))
+SacramentoDCC <- left_join(dat5, KSAC[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                           by = c("timestamp" = "timestamp"))
 summary(SacramentoDCC)
 
-SacramentoDCC <- subset(SacramentoDCC, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                          timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(SacramentoDCC$timestampPDT)
-summary(SacramentoDCC)
+SacramentoDCC <- subset(SacramentoDCC, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                          timestamp <= as.POSIXct('2020-10-01 00:00:00'))
+range(SacramentoDCC$timestamp)
 
 ## 
 ## Infill missing data: 
 ##   
 
-
-# Infill some data with rolling averages:
-ggplot(SacramentoDCC, aes(x=timestampPDT, y=(discharge))) +
-  geom_point(alpha = 0.7)  +
-  theme_classic()
-
 # Water Temp
-SacramentoDCC$tempCMean <- rollapply(SacramentoDCC$tempC, width=5000,
+SacramentoDCC$tempCMean <- rollapply(SacramentoDCC$tempC, width=500,
                                     FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                     by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -502,7 +442,7 @@ SacramentoDCC$tempC<- as.numeric(ifelse(is.na(SacramentoDCC$tempC),
                                        (SacramentoDCC$tempC)))
 
 # Discharge:
-SacramentoDCC$dischargeMean <- rollapply(SacramentoDCC$discharge, width=5000,
+SacramentoDCC$dischargeMean <- rollapply(SacramentoDCC$discharge, width=500,
                                         FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                         by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -510,7 +450,7 @@ SacramentoDCC$discharge <- as.numeric(ifelse(is.na(SacramentoDCC$discharge),
                                             (SacramentoDCC$dischargeMean),
                                             (SacramentoDCC$discharge)))
 # Dissolved oxygen:
-SacramentoDCC$DOmgLMean <- rollapply(SacramentoDCC$DOmgL, width=5000,
+SacramentoDCC$DOmgLMean <- rollapply(SacramentoDCC$DOmgL, width=500,
                                     FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                     by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -537,7 +477,7 @@ SacramentoDCC$depth <- calc_depth(Q=u(SacramentoDCC$discharge, "m^3 s^-1"), f=u(
 latitude <- c(38.25769218)
 longitude <- c(-121.5182865) 
 
-SacramentoDCC$solar.time <- calc_solar_time(SacramentoDCC$timestampPDT, longitude)
+SacramentoDCC$solar.time <- calc_solar_time(SacramentoDCC$timestamp, longitude)
 SacramentoDCC$light <- calc_light(SacramentoDCC$solar.time,
                                   latitude,
                                   longitude,
@@ -547,7 +487,6 @@ SacramentoDCC$light <- calc_light(SacramentoDCC$solar.time,
 SacramentoDCC$DO.sat <- calc_DO_sat(SacramentoDCC$tempC, 
                                     SacramentoDCC$pressure_millibar, sal=0) 
 names(SacramentoDCC)
-# colnames(SacramentoDCC)[5] <- "discharge"
 # colnames(SacramentoDCC)[7] <- "temp.water"
 # colnames(SacramentoDCC)[9] <- "DO.obs"
 
@@ -563,29 +502,25 @@ SacramentoDCCQ <- subset(SacramentoDCC, select= c("solar.time", "DO.obs", "DO.sa
 # RUSSIAN R NR HOPLAND CA
 ## ---------------------------
 dat6 <- read.csv("https://www.dropbox.com/s/6kq7ya5clbpzuum/nwis.11462500.csv?dl=1")
-summary(dat6)
 dat6$timestampPDT <- as.POSIXct(dat6$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
-summary(dat6)
+dat6$timestamp <- as.POSIXct(round_date(dat6$timestampPDT, hour,unit="5 minutes"))
 
 #Mesowest data near (39.02656314, -123.1305588)
-KUKI <- read_csv("https://www.dropbox.com/s/pa0dqjv7mz79z41/KUKI.csv?dl=1")
+KUKI <- read.csv("https://www.dropbox.com/s/5oc6xcpzs75jy9i/KUKI.2020-10-01.csv?dl=1")
 summary(KUKI)
-
 ##
 # Fix timestamp (round to nearest 5 minute):
-KUKI$timestamp <- round_date(KUKI$Date_Time, hour,unit="5 minutes")
-KUKI$timestamp1 <- format(KUKI$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KUKI$timestamp2 <- as.POSIXct(KUKI$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KUKI$timestampUTC <- as.POSIXct(KUKI$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KUKI$timestamp <- as.POSIXct(round_date(KUKI$timestampUTC, hour,unit="5 minutes"))
 
 names(KUKI)
 # Merge data files 
-RussianH <- left_join(dat6, KUKI[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                      by = c("timestampPDT" = "timestamp2"))
-summary(RussianH)
+RussianH <- left_join(dat6, KUKI[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                      by = c("timestamp" = "timestamp"))
 
-RussianH <- subset(RussianH, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                     timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(RussianH$timestampPDT)
+RussianH <- subset(RussianH, timestamp >= as.POSIXct('2016-10-01 00:53:00') & 
+                     timestamp <= as.POSIXct('2020-10-01 00:00:00'))
+range(RussianH$timestamp)
 summary(RussianH)
 
 ## 
@@ -616,7 +551,7 @@ RussianH$discharge <- as.numeric(ifelse(is.na(RussianH$discharge),
                                              (RussianH$dischargeMean),
                                              (RussianH$discharge)))
 # Dissolved oxygen:
-RussianH$DOmgLMean <- rollapply(RussianH$DOmgL, width=5000,
+RussianH$DOmgLMean <- rollapply(RussianH$DOmgL, width=500,
                                      FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                      by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -625,7 +560,7 @@ RussianH$DOmgL<- as.numeric(ifelse(is.na(RussianH$DOmgL),
                                         (RussianH$DOmgL)))
 
 # Pressure:
-RussianH$pressureMean <- rollapply(RussianH$pressure_set_1d, width=5000,
+RussianH$pressureMean <- rollapply(RussianH$pressure_set_1d, width=500,
                                         FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                         by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -644,7 +579,7 @@ RussianH$depth <- calc_depth(Q=u(RussianH$discharge, "m^3 s^-1"), f=u(0.36))
 latitude <- c(39.02656314)
 longitude <- c(-123.1305588) 
 
-RussianH$solar.time <- calc_solar_time(RussianH$timestampPDT, longitude)
+RussianH$solar.time <- calc_solar_time(RussianH$timestamp, longitude)
 RussianH$light <- calc_light(RussianH$solar.time,
                              latitude,
                              longitude,
@@ -654,9 +589,8 @@ RussianH$light <- calc_light(RussianH$solar.time,
 RussianH$DO.sat <- calc_DO_sat(RussianH$tempC, 
                                RussianH$pressure_millibar, sal=0) 
 names(RussianH)
-# colnames(RussianH)[7] <- "discharge"
-# colnames(RussianH)[5] <- "temp.water"
-# colnames(RussianH)[9] <- "DO.obs"
+colnames(RussianH)[5] <- "temp.water"
+colnames(RussianH)[9] <- "DO.obs"
 
 RussianHQ <- subset(RussianH, select= c("solar.time", "DO.obs", "DO.sat", "depth", "temp.water", "light", "discharge"))
 
@@ -668,31 +602,28 @@ RussianHQ <- subset(RussianH, select= c("solar.time", "DO.obs", "DO.sat", "depth
 # RUSSIAN R A DIGGER BEND NR HEALDSBURG CA
 ## ---------------------------
 dat7 <- read.csv("https://www.dropbox.com/s/gjr11v5t6pxjn2k/nwis.11463980.csv?dl=1")
-summary(dat7)
 dat7$timestampPDT <- as.POSIXct(dat7$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat7$timestamp <- as.POSIXct(round_date(dat7$timestampPDT, hour,unit="5 minutes"))
 summary(dat7)
 
 #Mesowest data near (38.6329653, -122.8555494)
-KO69 <- read_csv("https://www.dropbox.com/s/ojm6edcrae6p7x1/KO69.csv?dl=1")
+KO69 <- read_csv("https://www.dropbox.com/s/zu85xhoqrdqd9rm/KO69.2020-10-01.csv?dl=1")
 summary(KO69)
 
 ##
 # Fix timestamp (round to nearest 5 minute):
-KO69$timestamp <- round_date(KO69$Date_Time, hour,unit="5 minutes")
-KO69$timestamp1 <- format(KO69$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KO69$timestamp2 <- as.POSIXct(KO69$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KO69$timestampUTC <- as.POSIXct(KO69$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KO69$timestamp <- as.POSIXct(round_date(KO69$timestampUTC, hour,unit="5 minutes"))
 
 names(KO69)
 # Merge data files 
-RussianDB <- left_join(dat7, KO69[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                       by = c("timestampPDT" = "timestamp2"))
-summary(RussianDB)
+RussianDB <- left_join(dat7, KO69[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                       by = c("timestamp" = "timestamp"))
 
-RussianDB <- subset(RussianDB, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                      timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(RussianDB$timestampPDT)
+RussianDB <- subset(RussianDB, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                      timestamp <= as.POSIXct('2020-10-01 00:00:00'))
+range(RussianDB$timestamp)
 summary(RussianDB)
-
 ## 
 ## Infill missing data: 
 ##   
@@ -713,7 +644,7 @@ RussianDB$tempC<- as.numeric(ifelse(is.na(RussianDB$tempC),
                                    (RussianDB$tempC)))
 
 # Discharge:
-RussianDB$dischargeMean <- rollapply(RussianDB$discharge, width=5000,
+RussianDB$dischargeMean <- rollapply(RussianDB$discharge, width=500,
                                     FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                     by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -721,7 +652,7 @@ RussianDB$discharge <- as.numeric(ifelse(is.na(RussianDB$discharge),
                                         (RussianDB$dischargeMean),
                                         (RussianDB$discharge)))
 # Dissolved oxygen:
-RussianDB$DOmgLMean <- rollapply(RussianDB$DOmgL, width=5000,
+RussianDB$DOmgLMean <- rollapply(RussianDB$DOmgL, width=500,
                                 FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                 by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -730,7 +661,7 @@ RussianDB$DOmgL<- as.numeric(ifelse(is.na(RussianDB$DOmgL),
                                    (RussianDB$DOmgL)))
 
 # Pressure:
-RussianDB$pressureMean <- rollapply(RussianDB$pressure_set_1d, width=5000,
+RussianDB$pressureMean <- rollapply(RussianDB$pressure_set_1d, width=500,
                                    FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                    by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -748,7 +679,7 @@ RussianDB$depth <- calc_depth(Q=u(RussianDB$discharge, "m^3 s^-1"), f=u(0.36))
 latitude <- c(38.6329653)
 longitude <- c(-122.8555494) 
 
-RussianDB$solar.time <- calc_solar_time(RussianDB$timestampPDT, longitude)
+RussianDB$solar.time <- calc_solar_time(RussianDB$timestamp, longitude)
 RussianDB$light <- calc_light(RussianDB$solar.time,
                               latitude,
                               longitude,
@@ -758,9 +689,8 @@ RussianDB$light <- calc_light(RussianDB$solar.time,
 RussianDB$DO.sat <- calc_DO_sat(RussianDB$tempC, 
                                 RussianDB$pressure_millibar, sal=0) 
 names(RussianDB)
-colnames(RussianDB)[5] <- "discharge"
-colnames(RussianDB)[7] <- "temp.water"
-colnames(RussianDB)[9] <- "DO.obs"
+# colnames(RussianDB)[7] <- "temp.water"
+# colnames(RussianDB)[9] <- "DO.obs"
 
 RussianDBQ <- subset(RussianDB, select= c("solar.time", "DO.obs", "DO.sat", "depth", "temp.water", "light", "discharge"))
 
@@ -772,31 +702,29 @@ RussianDBQ <- subset(RussianDB, select= c("solar.time", "DO.obs", "DO.sat", "dep
 # DRY C BLW LAMBERT BR NR GEYSERVILLE CA
 ## ---------------------------
 dat8 <- read.csv("https://www.dropbox.com/s/1zm8kzx909m6jh5/nwis.11465420.csv?dl=1")
-summary(dat8)
 dat8$timestampPDT <- as.POSIXct(dat8$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat8$timestamp <- as.POSIXct(round_date(dat8$timestampPDT, hour,unit="5 minutes"))
 summary(dat8)
 
 #Mesowest data near (38.65324355, -122.9272191)
-KO69 <- read_csv("https://www.dropbox.com/s/ojm6edcrae6p7x1/KO69.csv?dl=1")
+KO69 <- read_csv("https://www.dropbox.com/s/zu85xhoqrdqd9rm/KO69.2020-10-01.csv?dl=1")
 summary(KO69)
 
 ##
 # Fix timestamp (round to nearest 5 minute):
-KO69$timestamp <- round_date(KO69$Date_Time, hour,unit="5 minutes")
-KO69$timestamp1 <- format(KO69$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KO69$timestamp2 <- as.POSIXct(KO69$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KO69$timestampUTC <- as.POSIXct(KO69$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KO69$timestamp <- as.POSIXct(round_date(KO69$timestampUTC, hour,unit="5 minutes"))
 
 names(KO69)
 # Merge data files 
-DryCBLW <- left_join(dat8, KO69[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                     by = c("timestampPDT" = "timestamp2"))
+DryCBLW <- left_join(dat8, KO69[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                     by = c("timestamp" = "timestamp"))
 summary(DryCBLW)
 
-DryCBLW <- subset(DryCBLW, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                    timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
+DryCBLW <- subset(DryCBLW, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                    timestamp <= as.POSIXct('2020-10-01 00:00:00'))
 range(DryCBLW$timestampPDT)
 summary(DryCBLW)
-
 
 ## 
 ## Infill missing data: 
@@ -808,7 +736,7 @@ ggplot(DryCBLW, aes(x=timestampPDT, y=(discharge))) +
   theme_classic()
 
 # Water Temp
-DryCBLW$tempCMean <- rollapply(DryCBLW$tempC, width=7000,
+DryCBLW$tempCMean <- rollapply(DryCBLW$tempC, width=500,
                                  FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                  by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -817,7 +745,7 @@ DryCBLW$tempC<- as.numeric(ifelse(is.na(DryCBLW$tempC),
                                     (DryCBLW$tempC)))
 
 # Discharge:
-DryCBLW$dischargeMean <- rollapply(DryCBLW$discharge, width=7000,
+DryCBLW$dischargeMean <- rollapply(DryCBLW$discharge, width=500,
                                      FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                      by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -825,7 +753,7 @@ DryCBLW$discharge <- as.numeric(ifelse(is.na(DryCBLW$discharge),
                                          (DryCBLW$dischargeMean),
                                          (DryCBLW$discharge)))
 # Dissolved oxygen:
-DryCBLW$DOmgLMean <- rollapply(DryCBLW$DOmgL, width=5000,
+DryCBLW$DOmgLMean <- rollapply(DryCBLW$DOmgL, width=500,
                                  FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                  by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -834,7 +762,7 @@ DryCBLW$DOmgL<- as.numeric(ifelse(is.na(DryCBLW$DOmgL),
                                     (DryCBLW$DOmgL)))
 
 # Pressure:
-DryCBLW$pressureMean <- rollapply(DryCBLW$pressure_set_1d, width=5000,
+DryCBLW$pressureMean <- rollapply(DryCBLW$pressure_set_1d, width=500,
                                     FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                     by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -843,10 +771,7 @@ DryCBLW$pressure_set_1d <- as.numeric(ifelse(is.na(DryCBLW$pressure_set_1d),
                                                (DryCBLW$pressure_set_1d)))
 
 DryCBLW$pressure_millibar <- c(DryCBLW$pressure_set_1d * 0.01)
-
 summary(DryCBLW)
-
-DryCBLW$pressure_millibar <- c(DryCBLW$pressure_set_1d * 0.01)
 
 ### Stream Metabolizer estimates ###
 DryCBLW$depth <- calc_depth(Q=u(DryCBLW$discharge, "m^3 s^-1"), f=u(0.36))
@@ -854,7 +779,7 @@ DryCBLW$depth <- calc_depth(Q=u(DryCBLW$discharge, "m^3 s^-1"), f=u(0.36))
 latitude <- c(38.65324355)
 longitude <- c(-122.9272191) 
 
-DryCBLW$solar.time <- calc_solar_time(DryCBLW$timestampPDT, longitude)
+DryCBLW$solar.time <- calc_solar_time(DryCBLW$timestamp, longitude)
 DryCBLW$light <- calc_light(DryCBLW$solar.time,
                             latitude,
                             longitude,
@@ -864,10 +789,8 @@ DryCBLW$light <- calc_light(DryCBLW$solar.time,
 DryCBLW$DO.sat <- calc_DO_sat(DryCBLW$tempC, 
                               DryCBLW$pressure_millibar, sal=0) 
 names(DryCBLW)
-# colnames(DryCBLW)[5] <- "discharge"
 # colnames(DryCBLW)[7] <- "temp.water"
 # colnames(DryCBLW)[9] <- "DO.obs"
-
 
 DryCBLWQ <- subset(DryCBLW, select= c("solar.time", "DO.obs", "DO.sat", "depth", "temp.water", "light", "discharge"))
 
@@ -875,33 +798,32 @@ DryCBLWQ <- subset(DryCBLW, select= c("solar.time", "DO.obs", "DO.sat", "depth",
 
 
 
-
 ## ---------------------------
 # RUSSIAN R NR GUERNEVILLE CA
 ## ---------------------------
 dat9 <- read.csv("https://www.dropbox.com/s/ich3wz5hy6bbasl/nwis.11467000.csv?dl=1")
-summary(dat9)
 dat9$timestampPDT <- as.POSIXct(dat9$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat9$timestamp <- as.POSIXct(round_date(dat9$timestampPDT, hour,unit="5 minutes"))
 summary(dat9)
 
 #Mesowest data near (38.50852336, -122.9277737)
-KO69 <- read_csv("https://www.dropbox.com/s/ojm6edcrae6p7x1/KO69.csv?dl=1")
+KO69 <- read_csv("https://www.dropbox.com/s/zu85xhoqrdqd9rm/KO69.2020-10-01.csv?dl=1")
 summary(KO69)
 
 ##
 # Fix timestamp (round to nearest 5 minute):
-KO69$timestamp <- round_date(KO69$Date_Time, hour,unit="5 minutes")
-KO69$timestamp1 <- format(KO69$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KO69$timestamp2 <- as.POSIXct(KO69$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KO69$timestampUTC <- as.POSIXct(KO69$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KO69$timestamp <- as.POSIXct(round_date(KO69$timestampUTC, hour,unit="5 minutes"))
 
 names(KO69)
 # Merge data files 
-RussianNRG <- left_join(dat9, KO69[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                        by = c("timestampPDT" = "timestamp2"))
+RussianNRG <- left_join(dat9, KO69[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                        by = c("timestamp" = "timestamp"))
+summary(RussianNRG)
 
-RussianNRG <- subset(RussianNRG, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                       timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(RussianNRG$timestampPDT)
+RussianNRG <- subset(RussianNRG, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                       timestamp <= as.POSIXct('2020-10-01 00:00:00'))
+range(RussianNRG$timestamp)
 summary(RussianNRG)
 
 ## 
@@ -940,7 +862,7 @@ RussianNRG$DOmgL<- as.numeric(ifelse(is.na(RussianNRG$DOmgL),
                                   (RussianNRG$DOmgL)))
 
 # Pressure:
-RussianNRG$pressureMean <- rollapply(RussianNRG$pressure_set_1d, width=5000,
+RussianNRG$pressureMean <- rollapply(RussianNRG$pressure_set_1d, width=500,
                                   FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                   by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -949,7 +871,6 @@ RussianNRG$pressure_set_1d <- as.numeric(ifelse(is.na(RussianNRG$pressure_set_1d
                                              (RussianNRG$pressure_set_1d)))
 
 RussianNRG$pressure_millibar <- c(RussianNRG$pressure_set_1d * 0.01)
-
 summary(RussianNRG)
 
 ### Stream Metabolizer estimates ###
@@ -958,7 +879,7 @@ RussianNRG$depth <- calc_depth(Q=u(RussianNRG$discharge, "m^3 s^-1"), f=u(0.36))
 latitude <- c(38.50852336)
 longitude <- c(-122.9277737) 
 
-RussianNRG$solar.time <- calc_solar_time(RussianNRG$timestampPDT, longitude)
+RussianNRG$solar.time <- calc_solar_time(RussianNRG$timestamp, longitude)
 RussianNRG$light <- calc_light(RussianNRG$solar.time,
                                latitude,
                                longitude,
@@ -969,9 +890,8 @@ RussianNRG$DO.sat <- calc_DO_sat(RussianNRG$tempC,
                                  RussianNRG$pressure_millibar, sal=0) 
 names(RussianNRG)
 summary(RussianNRG)
-colnames(RussianNRG)[7] <- "discharge"
-colnames(RussianNRG)[5] <- "temp.water"
-colnames(RussianNRG)[9] <- "DO.obs"
+# colnames(RussianNRG)[5] <- "temp.water"
+# colnames(RussianNRG)[9] <- "DO.obs"
 
 RussianNRGQ <- subset(RussianNRG, select= c("solar.time", "DO.obs", "DO.sat", "depth", "temp.water", "light", "discharge"))
 
@@ -983,30 +903,28 @@ RussianNRGQ <- subset(RussianNRG, select= c("solar.time", "DO.obs", "DO.sat", "d
 # WHITE RIVER AT R STREET NEAR AUBURN, WA 
 ## ---------------------------
 dat10 <- read.csv("https://www.dropbox.com/s/mk87oydbu601zqo/nwis.12100490.csv?dl=1")
-summary(dat10)
 dat10$timestampPDT <- as.POSIXct(dat10$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat10$timestamp <- as.POSIXct(round_date(dat10$timestampPDT, hour,unit="5 minutes"))
 summary(dat10)
 
 #Mesowest data near (47.27482295, -122.2078967)
-KRNT <- read_csv("https://www.dropbox.com/s/z96afy9m7onuhyr/KRNT.csv?dl=1")
+KRNT <- read.csv("https://www.dropbox.com/s/amdmo1obr0upo46/KRNT.2020-10-01.csv?dl=1")
 summary(KRNT)
-
 ##
 # Fix timestamp (round to nearest 5 minute):
-KRNT$timestamp <- round_date(KRNT$Date_Time, hour,unit="5 minutes")
-KRNT$timestamp1 <- format(KRNT$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KRNT$timestamp2 <- as.POSIXct(KRNT$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KRNT$timestampUTC <- as.POSIXct(KRNT$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KRNT$timestamp <- as.POSIXct(round_date(KRNT$timestampUTC, hour,unit="5 minutes"))
+
 
 names(KRNT)
 # Merge data files 
-WhiteA <- left_join(dat10, KRNT[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                    by = c("timestampPDT" = "timestamp2"))
+WhiteA <- left_join(dat10, KRNT[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                    by = c("timestamp" = "timestamp"))
 
-WhiteA <- subset(WhiteA, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                   timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(WhiteA$timestampPDT)
+WhiteA <- subset(WhiteA, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                   timestamp <= as.POSIXct('2020-10-01 00:00:00'))
+range(WhiteA$timestamp)
 summary(WhiteA)
-
 ## 
 ## Infill missing data: 
 ##   
@@ -1017,7 +935,7 @@ ggplot(WhiteA, aes(x=timestampPDT, y=(tempC))) +
   theme_classic()
 
 # Water Temp
-WhiteA$tempCMean <- rollapply(WhiteA$tempC, width=5000,
+WhiteA$tempCMean <- rollapply(WhiteA$tempC, width=500,
                                   FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                   by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1034,7 +952,7 @@ WhiteA$discharge <- as.numeric(ifelse(is.na(WhiteA$discharge),
                                           (WhiteA$dischargeMean),
                                           (WhiteA$discharge)))
 # Dissolved oxygen:
-WhiteA$DOmgLMean <- rollapply(WhiteA$DOmgL, width=5000,
+WhiteA$DOmgLMean <- rollapply(WhiteA$DOmgL, width=500,
                                   FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                   by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1043,14 +961,13 @@ WhiteA$DOmgL<- as.numeric(ifelse(is.na(WhiteA$DOmgL),
                                      (WhiteA$DOmgL)))
 
 # Pressure:
-WhiteA$pressureMean <- rollapply(WhiteA$pressure_set_1d, width=5000,
+WhiteA$pressureMean <- rollapply(WhiteA$pressure_set_1d, width=500,
                                      FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                      by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
 WhiteA$pressure_set_1d <- as.numeric(ifelse(is.na(WhiteA$pressure_set_1d), 
                                                 (WhiteA$pressureMean),
                                                 (WhiteA$pressure_set_1d)))
-
 
 WhiteA$pressure_millibar <- c(WhiteA$pressure_set_1d * 0.01)
 summary(WhiteA)
@@ -1061,7 +978,7 @@ WhiteA$depth <- calc_depth(Q=u(WhiteA$discharge, "m^3 s^-1"), f=u(0.36))
 latitude <- c(47.27482295)
 longitude <- c(-122.2078967) 
 
-WhiteA$solar.time <- calc_solar_time(WhiteA$timestampPDT, longitude)
+WhiteA$solar.time <- calc_solar_time(WhiteA$timestamp, longitude)
 WhiteA$light <- calc_light(WhiteA$solar.time,
                            latitude,
                            longitude,
@@ -1071,7 +988,6 @@ WhiteA$light <- calc_light(WhiteA$solar.time,
 WhiteA$DO.sat <- calc_DO_sat(WhiteA$tempC, 
                              WhiteA$pressure_millibar, sal=0) 
 names(WhiteA)
-# colnames(WhiteA)[5] <- "discharge"
 # colnames(WhiteA)[7] <- "temp.water"
 # colnames(WhiteA)[9] <- "DO.obs"
 
@@ -1085,28 +1001,26 @@ WhiteAQ <- subset(WhiteA, select= c("solar.time", "DO.obs", "DO.sat", "depth", "
 # CLARKS CREEK AT TACOMA ROAD NEAR PUYALLUP, WA 
 ## ---------------------------
 dat11 <- read.csv("https://www.dropbox.com/s/s17a6c7hof5ukhs/nwis.12102075.csv?dl=1")
-summary(dat11)
 dat11$timestampPDT <- as.POSIXct(dat11$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat11$timestamp <- as.POSIXct(round_date(dat11$timestampPDT, hour,unit="5 minutes"))
 summary(dat11)
 
 #Mesowest data near (47.19760016, -122.337343)
-KTCM <- read_csv("https://www.dropbox.com/s/3zw0gl95tc5lvgx/KTCM.csv?dl=1")
+KTCM <- read_csv("https://www.dropbox.com/s/r358tpw65u3qj5q/KTCM.2020-10-01.csv?dl=1")
 summary(KTCM)
-
 ##
 # Fix timestamp (round to nearest 5 minute):
-KTCM$timestamp <- round_date(KTCM$Date_Time, hour,unit="5 minutes")
-KTCM$timestamp1 <- format(KTCM$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KTCM$timestamp2 <- as.POSIXct(KTCM$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KTCM$timestampUTC <- as.POSIXct(KTCM$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KTCM$timestamp <- as.POSIXct(round_date(KTCM$timestampUTC, hour,unit="5 minutes"))
 
 names(KTCM)
 # Merge data files 
-ClarksC <- left_join(dat11, KTCM[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                     by = c("timestampPDT" = "timestamp2"))
+ClarksC <- left_join(dat11, KTCM[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                     by = c("timestamp" = "timestamp"))
 
-ClarksC <- subset(ClarksC, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                    timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(ClarksC$timestampPDT)
+ClarksC <- subset(ClarksC, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                    timestamp <= as.POSIXct('2020-10-01 00:00:00'))
+range(ClarksC$timestamp)
 summary(ClarksC)
 
 ## 
@@ -1119,7 +1033,7 @@ ggplot(ClarksC, aes(x=timestampPDT, y=(tempC))) +
   theme_classic()
 
 # Water Temp
-ClarksC$tempCMean <- rollapply(ClarksC$tempC, width=10000,
+ClarksC$tempCMean <- rollapply(ClarksC$tempC, width=500,
                               FUN=function(x) mean(x, na.rm=TRUE), by=1,
                               by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1128,7 +1042,7 @@ ClarksC$tempC<- as.numeric(ifelse(is.na(ClarksC$tempC),
                                  (ClarksC$tempC)))
 
 # Discharge:
-ClarksC$dischargeMean <- rollapply(ClarksC$discharge, width=5000,
+ClarksC$dischargeMean <- rollapply(ClarksC$discharge, width=500,
                                   FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                   by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1136,16 +1050,15 @@ ClarksC$discharge <- as.numeric(ifelse(is.na(ClarksC$discharge),
                                       (ClarksC$dischargeMean),
                                       (ClarksC$discharge)))
 # Dissolved oxygen:
-ClarksC$DOmgLMean <- rollapply(ClarksC$DOmgL, width=5000,
+ClarksC$DOmgLMean <- rollapply(ClarksC$DOmgL, width=500,
                               FUN=function(x) mean(x, na.rm=TRUE), by=1,
                               by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
 ClarksC$DOmgL<- as.numeric(ifelse(is.na(ClarksC$DOmgL), 
                                  (ClarksC$DOmgLMean),
                                  (ClarksC$DOmgL)))
-
 # Pressure:
-ClarksC$pressureMean <- rollapply(ClarksC$pressure_set_1d, width=5000,
+ClarksC$pressureMean <- rollapply(ClarksC$pressure_set_1d, width=500,
                                  FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                  by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1153,10 +1066,8 @@ ClarksC$pressure_set_1d <- as.numeric(ifelse(is.na(ClarksC$pressure_set_1d),
                                             (ClarksC$pressureMean),
                                             (ClarksC$pressure_set_1d)))
 
-
 ClarksC$pressure_millibar <- c(ClarksC$pressure_set_1d * 0.01)
 summary(ClarksC)
-
 
 ### Stream Metabolizer estimates ###
 ClarksC$depth <- calc_depth(Q=u(ClarksC$discharge, "m^3 s^-1"), f=u(0.36))
@@ -1164,7 +1075,7 @@ ClarksC$depth <- calc_depth(Q=u(ClarksC$discharge, "m^3 s^-1"), f=u(0.36))
 latitude <- c(47.19760016)
 longitude <- c(-122.337343) 
 
-ClarksC$solar.time <- calc_solar_time(ClarksC$timestampPDT, longitude)
+ClarksC$solar.time <- calc_solar_time(ClarksC$timestamp, longitude)
 ClarksC$light <- calc_light(ClarksC$solar.time,
                             latitude,
                             longitude,
@@ -1174,9 +1085,8 @@ ClarksC$light <- calc_light(ClarksC$solar.time,
 ClarksC$DO.sat <- calc_DO_sat(ClarksC$tempC, 
                               ClarksC$pressure_millibar, sal=0) 
 names(ClarksC)
-colnames(ClarksC)[5] <- "discharge"
-colnames(ClarksC)[7] <- "temp.water"
-colnames(ClarksC)[9] <- "DO.obs"
+# colnames(ClarksC)[7] <- "temp.water"
+# colnames(ClarksC)[9] <- "DO.obs"
 
 ClarksCQ <- subset(ClarksC, select= c("solar.time", "DO.obs", "DO.sat", "depth", "temp.water", "light", "discharge"))
 
@@ -1188,29 +1098,25 @@ ClarksCQ <- subset(ClarksC, select= c("solar.time", "DO.obs", "DO.sat", "depth",
 # FANNO CREEK AT DURHAM, OR
 ## ---------------------------
 dat13 <- read.csv("https://www.dropbox.com/s/vhteu1aox79mcr0/nwis.14206950.csv?dl=1")
-summary(dat13)
 dat13$timestampPDT <- as.POSIXct(dat13$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat13$timestamp <- as.POSIXct(round_date(dat13$timestampPDT, hour,unit="5 minutes"))
 summary(dat13)
 
 #Mesowest data near (45.403452, -122.7548185)
-KHIO <- read_csv("https://www.dropbox.com/s/0thwggj7bpu9jxz/KHIO.csv?dl=1")
-summary(KHIO)
+KHIO <- read_csv("https://www.dropbox.com/s/e9rcch76fb2z7ji/KHIO.2020-10-01.csv?dl=1")
 ##
 # Fix timestamp (round to nearest 5 minute):
-KHIO$timestamp <- round_date(KHIO$Date_Time, hour,unit="5 minutes")
-KHIO$timestamp1 <- format(KHIO$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-KHIO$timestamp2 <- as.POSIXct(KHIO$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+KHIO$timestampUTC <- as.POSIXct(KHIO$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+KHIO$timestamp <- as.POSIXct(round_date(KHIO$timestampUTC, hour,unit="5 minutes"))
 
 # Merge data files 
-Fanno <- left_join(dat13, KHIO[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                   by = c("timestampPDT" = "timestamp2"))
-summary(Fanno)
+Fanno <- left_join(dat13, KHIO[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                   by = c("timestamp" = "timestamp"))
 
-Fanno <- subset(Fanno, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                  timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(Fanno$timestampPDT)
+Fanno <- subset(Fanno, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                  timestamp <= as.POSIXct('2020-10-01 00:00:00'))
+range(Fanno$timestamp)
 summary(Fanno)
-
 
 ## 
 ## Infill missing data: 
@@ -1222,7 +1128,7 @@ ggplot(Fanno, aes(x=timestampPDT, y=(tempC))) +
   theme_classic()
 
 # Water Temp
-Fanno$tempCMean <- rollapply(Fanno$tempC, width=10000,
+Fanno$tempCMean <- rollapply(Fanno$tempC, width=500,
                                FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1240,7 +1146,7 @@ Fanno$discharge1 <- as.numeric(ifelse(is.na(Fanno$discharge1),
                                        (Fanno$dischargeMean),
                                        (Fanno$discharge1)))
 # Dissolved oxygen:
-Fanno$DOmgLMean <- rollapply(Fanno$DOmgL, width=10000,
+Fanno$DOmgLMean <- rollapply(Fanno$DOmgL, width=500,
                                FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1249,17 +1155,14 @@ Fanno$DOmgL<- as.numeric(ifelse(is.na(Fanno$DOmgL),
                                   (Fanno$DOmgL)))
 
 # Pressure:
-Fanno$pressureMean <- rollapply(Fanno$pressure_set_1d, width=10000,
+Fanno$pressureMean <- rollapply(Fanno$pressure_set_1d, width=500,
                                   FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                   by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
 Fanno$pressure_set_1d <- as.numeric(ifelse(is.na(Fanno$pressure_set_1d), 
                                              (Fanno$pressureMean),
                                              (Fanno$pressure_set_1d)))
-
 summary(Fanno)
-
-
 Fanno$pressure_millibar <- c(Fanno$pressure_set_1d * 0.01)
 
 ### Stream Metabolizer estimates ###
@@ -1268,7 +1171,7 @@ Fanno$depth <- calc_depth(Q=u(Fanno$discharge1, "m^3 s^-1"), f=u(0.36))
 latitude <- c(45.40352)
 longitude <- c(-122.75481) 
 
-Fanno$solar.time <- calc_solar_time(Fanno$timestampPDT, longitude)
+Fanno$solar.time <- calc_solar_time(Fanno$timestamp, longitude)
 Fanno$light <- calc_light(Fanno$solar.time,
                           latitude,
                           longitude,
@@ -1278,9 +1181,8 @@ Fanno$light <- calc_light(Fanno$solar.time,
 Fanno$DO.sat <- calc_DO_sat(Fanno$tempC, 
                             Fanno$pressure_millibar, sal=0) 
 names(Fanno)
-colnames(Fanno)[5] <- "discharge"
-colnames(Fanno)[7] <- "temp.water"
-colnames(Fanno)[9] <- "DO.obs"
+# colnames(Fanno)[7] <- "temp.water"
+# colnames(Fanno)[9] <- "DO.obs"
 
 FannoQ <- subset(Fanno, select= c("solar.time", "DO.obs", "DO.sat", "depth", "temp.water", "light", "discharge"))
 
@@ -1291,28 +1193,26 @@ FannoQ <- subset(Fanno, select= c("solar.time", "DO.obs", "DO.sat", "depth", "te
 # MCKENZIE RIVER NEAR VIDA, OR
 ## ---------------------------
 dat12 <- read.csv("https://www.dropbox.com/s/oq5h9m1mb6pcr5y/nwis.14162500.csv?dl=1")
-summary(dat12)
 dat12$timestampPDT <- as.POSIXct(dat12$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat12$timestamp <- as.POSIXct(round_date(dat12$timestampPDT, hour,unit="5 minutes"))
 summary(dat12)
 
 #Mesowest data near (44.1248487, -122.47062)
-K6S2 <- read_csv("https://www.dropbox.com/s/eizxbqcydao7who/K6S2.csv?dl=1")
+K6S2 <- read_csv("https://www.dropbox.com/s/qcax8ll7758ahw8/K6S2.2020-10-01.csv?dl=1")
 summary(K6S2)
-
 ##
 # Fix timestamp (round to nearest 5 minute):
-K6S2$timestamp <- round_date(K6S2$Date_Time, hour,unit="5 minutes")
-K6S2$timestamp1 <- format(K6S2$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-K6S2$timestamp2 <- as.POSIXct(K6S2$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+K6S2$timestampUTC <- as.POSIXct(K6S2$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+K6S2$timestamp <- as.POSIXct(round_date(K6S2$timestampUTC, hour,unit="5 minutes"))
 
 names(K6S2)
 # Merge data files 
-Mckenzie <- left_join(dat12, K6S2[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                      by = c("timestampPDT" = "timestamp2"))
+Mckenzie <- left_join(dat12, K6S2[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                      by = c("timestamp" = "timestamp"))
 
-Mckenzie <- subset(Mckenzie, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                     timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(Mckenzie$timestampPDT)
+Mckenzie <- subset(Mckenzie, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                     timestamp<= as.POSIXct('2020-10-01 00:00:00'))
+range(Mckenzie$timestamp)
 summary(Mckenzie)
 
 ## 
@@ -1325,7 +1225,7 @@ ggplot(Mckenzie, aes(x=timestampPDT, y=(pressure_set_1d))) +
   theme_classic()
 
 # Water Temp
-Mckenzie$tempCMean <- rollapply(Mckenzie$tempC, width=5000,
+Mckenzie$tempCMean <- rollapply(Mckenzie$tempC, width=500,
                              FUN=function(x) mean(x, na.rm=TRUE), by=1,
                              by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1395,30 +1295,27 @@ MckenzieQ <- subset(Mckenzie, select= c("solar.time", "DO.obs", "DO.sat", "depth
 # CLACKAMAS RIVER AT ESTACADA, OR
 ## ---------------------------
 dat14 <- read.csv("https://www.dropbox.com/s/575866cahvfh3j7/nwis.14210000.csv?dl=1")
-summary(dat14)
 dat14$timestampPDT <- as.POSIXct(dat14$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat14$timestamp <- as.POSIXct(round_date(dat14$timestampPDT, hour,unit="5 minutes"))
 summary(dat14)
 
 #Mesowest data near (45.30053, -122.35359)
-D7564 <- read_csv("https://www.dropbox.com/s/3omdwxs3exw55er/D7564.csv?dl=1")
+D7564 <- read_csv("https://www.dropbox.com/s/jqe4oouq2l2eqas/D7564.2020-10-01.csv?dl=1")
 summary(D7564)
-
 ##
 # Fix timestamp (round to nearest 5 minute):
-D7564$timestamp <- round_date(D7564$Date_Time, hour,unit="5 minutes")
-D7564$timestamp1 <- format(D7564$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-D7564$timestamp2 <- as.POSIXct(D7564$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+D7564$timestampUTC <- as.POSIXct(D7564$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+D7564$timestamp <- as.POSIXct(round_date(D7564$timestampUTC, hour,unit="5 minutes"))
 
 names(D7564)
 # Merge data files 
-Clackamas <- left_join(dat14, D7564[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                       by = c("timestampPDT" = "timestamp2"))
+Clackamas <- left_join(dat14, D7564[c("timestamp", "air_temp_set_1", "pressure_set_1d")],
+                       by = c("timestamp" = "timestamp"))
 
-Clackamas <- subset(Clackamas, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                      timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(Clackamas$timestampPDT)
+Clackamas <- subset(Clackamas, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                      timestamp <= as.POSIXct('2020-10-01 00:00:00'))
+range(Clackamas$timestamp)
 summary(Clackamas)
-
 ## 
 ## Infill missing data: 
 ##   *** Missing 2019 and 2020 pressure data
@@ -1429,7 +1326,7 @@ ggplot(Clackamas, aes(x=timestampPDT, y=(tempC))) +
   theme_classic()
 
 # Water Temp
-Clackamas$tempCMean <- rollapply(Clackamas$tempC, width=5000,
+Clackamas$tempCMean <- rollapply(Clackamas$tempC, width=500,
                                 FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                 by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1446,7 +1343,7 @@ Clackamas$discharge <- as.numeric(ifelse(is.na(Clackamas$discharge),
                                          (Clackamas$dischargeMean),
                                          (Clackamas$discharge)))
 # Dissolved oxygen:
-Clackamas$DOmgLMean <- rollapply(Clackamas$DOmgL, width=5000,
+Clackamas$DOmgLMean <- rollapply(Clackamas$DOmgL, width=500,
                                 FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                 by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1455,7 +1352,7 @@ Clackamas$DOmgL<- as.numeric(ifelse(is.na(Clackamas$DOmgL),
                                    (Clackamas$DOmgL)))
 
 # Pressure:
-Clackamas$pressureMean <- rollapply(Clackamas$pressure_set_1d, width=5000,
+Clackamas$pressureMean <- rollapply(Clackamas$pressure_set_1d, width=500,
                                    FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                    by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1472,7 +1369,7 @@ Clackamas$depth <- calc_depth(Q=u(Clackamas$discharge, "m^3 s^-1"), f=u(0.36))
 latitude <- c(45.30053)
 longitude <- c(-122.35359) 
 
-Clackamas$solar.time <- calc_solar_time(Clackamas$timestampPDT, longitude)
+Clackamas$solar.time <- calc_solar_time(Clackamas$timestamp, longitude)
 Clackamas$light <- calc_light(Clackamas$solar.time,
                               latitude,
                               longitude,
@@ -1482,9 +1379,8 @@ Clackamas$light <- calc_light(Clackamas$solar.time,
 Clackamas$DO.sat <- calc_DO_sat(Clackamas$tempC, 
                                 Clackamas$pressure_millibar, sal=0) 
 names(Clackamas)
-colnames(Clackamas)[5] <- "discharge"
-colnames(Clackamas)[7] <- "temp.water"
-colnames(Clackamas)[9] <- "DO.obs"
+# colnames(Clackamas)[7] <- "temp.water"
+# colnames(Clackamas)[9] <- "DO.obs"
 
 ClackamasQ <- subset(Clackamas, select= c("solar.time", "DO.obs", "DO.sat", "depth", "temp.water", "light", "discharge"))
 
@@ -1496,30 +1392,27 @@ ClackamasQ <- subset(Clackamas, select= c("solar.time", "DO.obs", "DO.sat", "dep
 # CLACKAMAS RIVER NEAR OREGON CITY, OR 
 ## ---------------------------
 dat15 <- read.csv("https://www.dropbox.com/s/mlv21xdjirevuaq/nwis.14211010.csv?dl=1")
-summary(dat15)
 dat15$timestampPDT <- as.POSIXct(dat15$datetime, format = "%m/%d/%Y %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+dat15$timestamp <- as.POSIXct(round_date(dat15$timestampPDT, hour,unit="5 minutes"))
 summary(dat15)
 
 #Mesowest data near (45.3792874, -122.5773134)
-ORCO3 <- read_csv("https://www.dropbox.com/s/uclacgc9b6uukxi/ORCO3.csv?dl=1")
+ORCO3 <- read_csv("https://www.dropbox.com/s/tmiyxm8fl1gl55j/ORCO3.2020-10-01.csv?dl=1")
 summary(ORCO3)
-
 ##
 # Fix timestamp (round to nearest 5 minute):
-ORCO3$timestamp <- round_date(ORCO3$Date_Time, hour,unit="5 minutes")
-ORCO3$timestamp1 <- format(ORCO3$timestamp , tz="America/Los_Angeles", usetz=TRUE)
-ORCO3$timestamp2 <- as.POSIXct(ORCO3$timestamp1, format = "%Y-%m-%d %H:%M", tz="America/Los_Angeles", usetz=TRUE)
+ORCO3$timestampUTC <- as.POSIXct(ORCO3$Date_Time, format = "%Y-%m-%dT%H:%M", tz="UTC")
+ORCO3$timestamp <- as.POSIXct(round_date(ORCO3$timestampUTC, hour,unit="5 minutes"))
 
 names(ORCO3)
 # Merge data files 
-ClackamasOC <- left_join(dat15, ORCO3[c("timestamp2", "air_temp_set_1", "pressure_set_1d")],
-                         by = c("timestampPDT" = "timestamp2"))
+ClackamasOC <- left_join(dat15, ORCO3[c("timestamp", "air_temp_set_1", "altimeter_set_1d")],
+                         by = c("timestamp" = "timestamp"))
 
-ClackamasOC <- subset(ClackamasOC, timestampPDT >= as.POSIXct('2016-10-01 00:53:00') & 
-                        timestampPDT <= as.POSIXct('2020-09-10 00:00:00'))
-range(ClackamasOC$timestampPDT)
+ClackamasOC <- subset(ClackamasOC, timestamp >= as.POSIXct('2015-10-01 00:53:00') & 
+                        timestamp <= as.POSIXct('2020-09-20 00:00:00'))
+range(ClackamasOC$timestamp)
 summary(ClackamasOC)
-
 
 ## 
 ## Infill missing data: 
@@ -1557,7 +1450,7 @@ ClackamasOC$DOmgL<- as.numeric(ifelse(is.na(ClackamasOC$DOmgL),
                                     (ClackamasOC$DOmgL)))
 
 # Pressure:
-ClackamasOC$pressureMean <- rollapply(ClackamasOC$pressure_set_1d, width=5000,
+ClackamasOC$pressureMean <- rollapply(ClackamasOC$pressure_set_1d, width=500,
                                     FUN=function(x) mean(x, na.rm=TRUE), by=1,
                                     by.column=TRUE, partial=TRUE, fill=NA, align="center")
 
@@ -1575,7 +1468,7 @@ ClackamasOC$depth <- calc_depth(Q=u(ClackamasOC$discharge, "m^3 s^-1"), f=u(0.36
 latitude <- c(45.3792874)
 longitude <- c(-122.5773134) 
 
-ClackamasOC$solar.time <- calc_solar_time(ClackamasOC$timestampPDT, longitude)
+ClackamasOC$solar.time <- calc_solar_time(ClackamasOC$timestamp, longitude)
 ClackamasOC$light <- calc_light(ClackamasOC$solar.time,
                                 latitude,
                                 longitude,
@@ -1585,9 +1478,8 @@ ClackamasOC$light <- calc_light(ClackamasOC$solar.time,
 ClackamasOC$DO.sat <- calc_DO_sat(ClackamasOC$tempC, 
                                   ClackamasOC$pressure_millibar, sal=0) 
 names(ClackamasOC)
-colnames(ClackamasOC)[5] <- "discharge"
-colnames(ClackamasOC)[7] <- "temp.water"
-colnames(ClackamasOC)[11] <- "DO.obs"
+# colnames(ClackamasOC)[7] <- "temp.water"
+# colnames(ClackamasOC)[11] <- "DO.obs"
 
 ClackamasOCQ <- subset(ClackamasOC, select= c("solar.time", "DO.obs", "DO.sat", "depth", "temp.water", "light", "discharge"))
 
