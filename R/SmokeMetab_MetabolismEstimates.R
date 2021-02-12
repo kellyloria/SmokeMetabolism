@@ -32,22 +32,35 @@ head(TS_dat)
 ######################
 ## Subset
 TS_dat <- TS_dat[,c("solar.time","DO.obs","DO.sat","depth","temp.water","light","discharge","NWIS_site")]
+
 ## Change to date
 TS_dat$solar.time <- as.POSIXct(as.character(TS_dat$solar.time), format="%Y-%m-%d %H:%M:%S", tz="UTC")
+
+## Get rid of any duplicate date-times
+TS_dat <- TS_dat[!duplicated(TS_dat[c('solar.time')]),]
+
+## Check to make sure all are in the right class
+sapply(TS_dat, class)
+TS_dat$discharge <- as.numeric(as.character(TS_dat$discharge))
+
+## Get rid of NA rows
+TS_dat <- na.omit(TS_dat)
+
 ## Split into list
 TS_list <- split(TS_dat, TS_dat$NWIS_site)
+
 ## Get rid of NWIS_site column
 TS_list <- lapply(TS_list, function(x) subset(x, select=-c(NWIS_site)))
 
 ## Subset data to only after 06-01-2020
 TS_list <- lapply(TS_list, function(x) subset(x, solar.time > as.POSIXct("2020-06-01 00:00:00")))
 lapply(TS_list, function(x) tail(x)) ## TS ends 2020-09-09
-
+lapply(TS_list, function(x) sapply(x, class))
 
 ########################
 ## Visualize
 ########################
-dat <- TS_list[[1]]
+dat <- TS_list[[4]]
 
 dat %>% unitted::v() %>%
   mutate(DO.pctsat = 100 * (DO.obs / DO.sat)) %>%
@@ -68,10 +81,6 @@ dat %>% unitted::v() %>%
   ggplot(aes(x=solar.time, y=value, color=type)) + geom_line() + 
   facet_grid(units ~ ., scale='free_y') + theme_bw() +
   scale_color_discrete('variable')
-
-
-
-
 
 ########################
 ## Set model and specs
